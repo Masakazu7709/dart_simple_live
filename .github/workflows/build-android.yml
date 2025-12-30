@@ -8,27 +8,43 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      # 1. 拉代码
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      # 2. 安装 Flutter（用 stable，不锁死版本）
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.22.0'
-          channel: 'stable'
+          channel: stable
+          cache: true
 
+      # 3. 显示环境信息（方便排错）
       - name: Flutter doctor
         run: flutter doctor -v
 
-      - name: Get dependencies
+      # 4. 接受 Android SDK 协议（CI 必须）
+      - name: Accept Android licenses
+        run: yes | flutter doctor --android-licenses
+
+      # 5. 修复 intl 版本冲突（关键步骤）
+      - name: Patch intl dependency
+        working-directory: simple_live_app
+        run: |
+          sed -i 's/intl: \^0.20.2/intl: \^0.19.0/' pubspec.yaml
+
+      # 6. 拉取依赖
+      - name: Get Flutter dependencies
         working-directory: simple_live_app
         run: flutter pub get
 
+      # 7. 编译 Release APK
       - name: Build release APK
         working-directory: simple_live_app
-        run: flutter build apk --release
+        run: flutter build apk --release --no-tree-shake-icons
 
-      - name: Upload APK
+      # 8. 上传产物
+      - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
           name: simple-live-apk
