@@ -10,6 +10,7 @@
 简简单单的看直播
 </p>
 
+
 ![浅色模式](/assets/screenshot_light.jpg)
 
 ![深色模式](/assets/screenshot_dark.jpg)
