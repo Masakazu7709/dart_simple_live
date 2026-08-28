@@ -7,35 +7,42 @@ jobs:
   build-windows:
     runs-on: windows-latest
     steps:
-      # 1. 签出代码
       - uses: actions/checkout@v4
         with:
           ref: master
 
-      # 2. 设置 Flutter 环境
+      - name: Install mpv dependency
+        run: choco install mpv -y
+
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
           flutter-version: "3.38.x"
           cache: true
 
-      # 3. 开启 Windows 支持
       - name: Enable Flutter Desktop
         run: flutter config --enable-windows-desktop
 
-      # 4. 获取依赖
       - name: Restore Packages
         run: |
           cd simple_live_app
           flutter pub get
 
-      # 5. 直接编译 Windows EXE 程序
-      - name: Build Windows Executable
+      # 关键步骤：注入预处理器参数，绕过 MSVC C++ 协程弃用警告
+      - name: Suppress MSVC Deprecation Errors
+        shell: bash
         run: |
+          export CXXFLAGS="$CXXFLAGS -D_SILENCE_EXPERIMENTAL_COROUTINE_DEPRECATION_WARNINGS"
+          export CFLAGS="$CFLAGS -D_SILENCE_EXPERIMENTAL_COROUTINE_DEPRECATION_WARNINGS"
+
+      - name: Build Windows Executable
+        shell: cmd
+        run: |
+          set CXXFLAGS=/D_SILENCE_EXPERIMENTAL_COROUTINE_DEPRECATION_WARNINGS
+          set CFLAGS=/D_SILENCE_EXPERIMENTAL_COROUTINE_DEPRECATION_WARNINGS
           cd simple_live_app
           flutter build windows --release
 
-      # 6. 上传 Windows 产物到 Artifacts
       - name: Upload Windows APP to Artifacts
         uses: actions/upload-artifact@v4
         with:
