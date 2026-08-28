@@ -1,0 +1,43 @@
+name: Build Windows App
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      # 1. 签出代码
+      - uses: actions/checkout@v4
+        with:
+          ref: master
+
+      # 2. 设置 Flutter 环境
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "3.38.x"
+          cache: true
+
+      # 3. 开启 Windows 支持
+      - name: Enable Flutter Desktop
+        run: flutter config --enable-windows-desktop
+
+      # 4. 获取依赖
+      - name: Restore Packages
+        run: |
+          cd simple_live_app
+          flutter pub get
+
+      # 5. 直接编译 Windows EXE 程序
+      - name: Build Windows Executable
+        run: |
+          cd simple_live_app
+          flutter build windows --release
+
+      # 6. 上传 Windows 产物到 Artifacts
+      - name: Upload Windows APP to Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-app
+          path: simple_live_app/build/windows/x64/runner/Release/
