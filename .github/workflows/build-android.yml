@@ -4,48 +4,39 @@ on:
   workflow_dispatch:
 
 jobs:
-  build:
+  build-android:
     runs-on: ubuntu-latest
-
     steps:
-      # 1. Checkout
-      - name: Checkout repository
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          ref: master
 
-      # 2. Set up Flutter (stable)
-      - name: Set up Flutter
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: "zulu"
+          java-version: "17"
+
+      # 将 Flutter 版本设为 3.27.x，避免高版本 Flutter 与项目旧 Gradle 冲突
+      - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
-          channel: stable
+          flutter-version: "3.27.x"
           cache: true
 
-      # 3. Flutter doctor
-      - name: Flutter doctor
-        run: flutter doctor -v
-
-      # 4. Accept Android licenses
-      - name: Accept Android licenses
-        run: yes | flutter doctor --android-licenses
-
-      # 5. REMOVE intl dependency (关键一步)
-      - name: Remove intl dependency
-        working-directory: simple_live_app
+      - name: Restore Packages
         run: |
-          sed -i '/^  intl:/d' pubspec.yaml
+          cd simple_live_app
+          flutter pub get
 
-      # 6. Get dependencies
-      - name: Get Flutter dependencies
-        working-directory: simple_live_app
-        run: flutter pub get
+      # 添加 --android-skip-build-dependency-validation 标志跳过 Gradle 版本强检
+      - name: Build APK
+        run: |
+          cd simple_live_app
+          flutter build apk --release --no-tree-shake-icons --android-skip-build-dependency-validation
 
-      # 7. Build release APK
-      - name: Build release APK
-        working-directory: simple_live_app
-        run: flutter build apk --release --no-tree-shake-icons
-
-      # 8. Upload APK
-      - name: Upload APK artifact
+      - name: Upload APK to Artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: simple-live-apk
-          path: simple_live_app/build/app/outputs/flutter-apk/app-release.apk
+          name: android-apk
+          path: simple_live_app/build/app/outputs/flutter-apk/*.apk
