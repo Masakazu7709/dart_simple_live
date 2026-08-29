@@ -7,34 +7,52 @@ jobs:
   build-android:
     runs-on: ubuntu-latest
     steps:
+      # 1. 签出代码
       - uses: actions/checkout@v4
         with:
           ref: master
 
+      # 2. 设置 Java 17
       - name: Setup Java
         uses: actions/setup-java@v4
         with:
           distribution: "zulu"
           java-version: "17"
 
-      # 切回 3.38.x 以满足 intl 0.20.2 依赖需求
+      # 3. 设置 Flutter 3.38.x
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
           flutter-version: "3.38.x"
           cache: true
 
+      # 4. 一次性补丁修复：强升 Kotlin 版本 + 优化 Gradle 编译参数
+      - name: Patch Android Project Configuration
+        run: |
+          cd simple_live_app/android
+          
+          # 升级 Kotlin Gradle 插件版本至 1.9.20，解决 dynamic_color 的 compilerOptions 报错
+          find . -name "build.gradle*" -exec sed -i 's/org.jetbrains.kotlin.android" version "[^"]*"/org.jetbrains.kotlin.android" version "1.9.20"/g' {} +
+          find . -name "build.gradle*" -exec sed -i "s/ext.kotlin_version = '[^']*'/ext.kotlin_version = '1.9.20'/g" {} +
+          
+          # 增加 Gradle 内存容量并开启并行编译，防止 CI 环境崩溃
+          echo "org.gradle.jvmargs=-Xmx4096m -XX:MaxMetaspaceSize=1024m" >> gradle.properties
+          echo "android.useAndroidX=true" >> gradle.properties
+          echo "android.enableJetifier=true" >> gradle.properties
+
+      # 5. 获取 Flutter 依赖
       - name: Restore Packages
         run: |
           cd simple_live_app
           flutter pub get
 
-      # 使用 --extra-front-end-options / --android-skip-build-dependency-validation 绕过检验
+      # 6. 编译 Release APK
       - name: Build APK
         run: |
           cd simple_live_app
           flutter build apk --release --no-tree-shake-icons --android-skip-build-dependency-validation
 
+      # 7. 上传编译成果
       - name: Upload APK to Artifacts
         uses: actions/upload-artifact@v4
         with:
