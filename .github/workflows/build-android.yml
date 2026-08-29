@@ -17,30 +17,36 @@ jobs:
           distribution: "zulu"
           java-version: "17"
 
-      # 升级到 3.38.x 以提供足够的 Dart SDK 版本 (Dart >= 3.10)
+      # 1. 保持高版本 Flutter 满足 Dart SDK >= 3.10 要求
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
           flutter-version: "3.38.x"
           cache: true
 
-      # 解绑 intl 依赖版本，解决 SDK 锁定死锁
-      - name: Unlock intl dependency version
+      # 2. 关键两步修复：解绑 intl 限制 + 升级 dynamic_color 避开旧语法 Bug
+      - name: Patch Dependencies
         run: |
           cd simple_live_app
+          # 解绑 intl 版本死锁
           sed -i 's/intl: \^0.20.2/intl: any/g' pubspec.yaml
+          
+          # 强制将 dynamic_color 升级至兼容最新的 1.9.1+ 版本
+          flutter pub add dynamic_color:^1.9.1
 
+      # 3. 拉取依赖
       - name: Restore Packages
         run: |
           cd simple_live_app
           flutter pub get
 
-      # 构建 APK 并绕过 Gradle 版本强检
+      # 4. 构建 APK（跳过 Gradle 强检）
       - name: Build APK
         run: |
           cd simple_live_app
           flutter build apk --release --no-tree-shake-icons --android-skip-build-dependency-validation
 
+      # 5. 上传安装包
       - name: Upload APK to Artifacts
         uses: actions/upload-artifact@v4
         with:
