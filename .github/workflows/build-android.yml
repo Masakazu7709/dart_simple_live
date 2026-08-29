@@ -17,13 +17,14 @@ jobs:
           distribution: "zulu"
           java-version: "17"
 
+      # 升级到 3.38.x 以提供足够的 Dart SDK 版本 (Dart >= 3.10)
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: "3.27.x"
+          flutter-version: "3.38.x"
           cache: true
 
-      # 关键一步：在 pub get 前将 pubspec.yaml 里的 intl 版本限制解绑，彻底消除死锁冲突
+      # 解绑 intl 依赖版本，解决 SDK 锁定死锁
       - name: Unlock intl dependency version
         run: |
           cd simple_live_app
@@ -34,6 +35,7 @@ jobs:
           cd simple_live_app
           flutter pub get
 
+      # 构建 APK 并绕过 Gradle 版本强检
       - name: Build APK
         run: |
           cd simple_live_app
