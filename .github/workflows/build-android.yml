@@ -17,10 +17,11 @@ jobs:
           distribution: "zulu"
           java-version: "17"
 
+      # 使用 3.24.x 版本 Flutter，原生兼容项目中的 Kotlin 和 dynamic_color 语法
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: "3.38.x"
+          flutter-version: "3.24.x"
           cache: true
 
       - name: Restore Packages
@@ -28,26 +29,10 @@ jobs:
           cd simple_live_app
           flutter pub get
 
-      # 强制修正：在 pub get 之后，直接扫描并修复 .pub-cache 中第三方库 (dynamic_color) 的 Kotlin 2.0+ DSL 编译错误
-      - name: Fix Third-party Kotlin DSL Compatibility
-        run: |
-          # 1. 给项目本身的 settings.gradle.kts / build.gradle 强制指定 Kotlin 插件版本 2.0.21
-          cd simple_live_app/android
-          echo 'buildscript { dependencies { classpath("org.jetbrains.kotlin:kotlin-gradle-plugin:2.0.21") } }' >> build.gradle.kts 2>/dev/null || true
-          echo 'buildscript { dependencies { classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:2.0.21" } }' >> build.gradle 2>/dev/null || true
-
-          # 2. 修改 pub-cache 下 dynamic_color 的 build.gradle.kts，消除 compilerOptions 语法不兼容报错
-          CACHE_FILE=$(find /home/runner/.pub-cache -name "build.gradle.kts" | grep "dynamic_color" || true)
-          if [ -n "$CACHE_FILE" ]; then
-            sed -i 's/kotlin {/ \/\/ kotlin {/g' "$CACHE_FILE"
-            sed -i 's/compilerOptions {/ \/\/ compilerOptions {/g' "$CACHE_FILE"
-            sed -i 's/jvmTarget =/ \/\/ jvmTarget =/g' "$CACHE_FILE"
-          fi
-
       - name: Build APK
         run: |
           cd simple_live_app
-          flutter build apk --release --no-tree-shake-icons --android-skip-build-dependency-validation
+          flutter build apk --release --no-tree-shake-icons
 
       - name: Upload APK to Artifacts
         uses: actions/upload-artifact@v4
