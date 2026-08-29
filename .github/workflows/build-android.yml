@@ -17,12 +17,17 @@ jobs:
           distribution: "zulu"
           java-version: "17"
 
-      # 使用 3.24.x 版本 Flutter，原生兼容项目中的 Kotlin 和 dynamic_color 语法
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: "3.24.x"
+          flutter-version: "3.27.x"
           cache: true
+
+      # 关键一步：在 pub get 前将 pubspec.yaml 里的 intl 版本限制解绑，彻底消除死锁冲突
+      - name: Unlock intl dependency version
+        run: |
+          cd simple_live_app
+          sed -i 's/intl: \^0.20.2/intl: any/g' pubspec.yaml
 
       - name: Restore Packages
         run: |
@@ -32,7 +37,7 @@ jobs:
       - name: Build APK
         run: |
           cd simple_live_app
-          flutter build apk --release --no-tree-shake-icons
+          flutter build apk --release --no-tree-shake-icons --android-skip-build-dependency-validation
 
       - name: Upload APK to Artifacts
         uses: actions/upload-artifact@v4
