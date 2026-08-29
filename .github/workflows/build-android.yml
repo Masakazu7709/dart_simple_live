@@ -17,11 +17,11 @@ jobs:
           distribution: "zulu"
           java-version: "17"
 
-      # 将 Flutter 版本设为 3.27.x，避免高版本 Flutter 与项目旧 Gradle 冲突
+      # 切回 3.38.x 以满足 intl 0.20.2 依赖需求
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: "3.27.x"
+          flutter-version: "3.38.x"
           cache: true
 
       - name: Restore Packages
@@ -29,7 +29,7 @@ jobs:
           cd simple_live_app
           flutter pub get
 
-      # 添加 --android-skip-build-dependency-validation 标志跳过 Gradle 版本强检
+      # 使用 --extra-front-end-options / --android-skip-build-dependency-validation 绕过检验
       - name: Build APK
         run: |
           cd simple_live_app
