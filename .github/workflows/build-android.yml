@@ -17,38 +17,39 @@ jobs:
           distribution: "zulu"
           java-version: "17"
 
-      # 1. 保持高版本 Flutter 满足 Dart SDK >= 3.10 要求
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
           flutter-version: "3.38.x"
           cache: true
 
-      # 2. 核心两步重写：解除 intl 限制 + 强行降级 dynamic_color 到稳定版 1.7.0
-      - name: Overrides problematic dependencies
+      # 解决所有依赖冲突与 auto_orientation 插件找不到的问题
+      - name: Patch Dependencies
         run: |
           cd simple_live_app
-          # 解除 intl 版本锁死
+          # 1. 解除 intl 版本限制
           sed -i 's/intl: \^0.20.2/intl: any/g' pubspec.yaml
           
-          # 写入 dependency_overrides，把 dynamic_color 强制覆盖为 1.7.0
+          # 2. 重写锁定 dynamic_color 与 auto_orientation
           echo "" >> pubspec.yaml
           echo "dependency_overrides:" >> pubspec.yaml
           echo "  dynamic_color: 1.7.0" >> pubspec.yaml
+          echo "  auto_orientation: any" >> pubspec.yaml
 
-      # 3. 拉取依赖
+      # 清理旧编译缓存并拉取依赖
       - name: Restore Packages
         run: |
           cd simple_live_app
+          flutter clean
           flutter pub get
 
-      # 4. 构建 APK（跳过 Gradle 强检）
+      # 构建 Release APK
       - name: Build APK
         run: |
           cd simple_live_app
           flutter build apk --release --no-tree-shake-icons --android-skip-build-dependency-validation
 
-      # 5. 上传安装包
+      # 上传 APK 产物
       - name: Upload APK to Artifacts
         uses: actions/upload-artifact@v4
         with:
