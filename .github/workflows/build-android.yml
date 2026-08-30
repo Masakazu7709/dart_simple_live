@@ -60,29 +60,28 @@ jobs:
           cd simple_live_app
           flutter pub get
 
-      # 4. 修复 auto_orientation 插件以适配 AGP 8.0+ 规范
-      - name: Fix auto_orientation Manifest and Namespace for AGP 8.0+
+      # 4. 彻底修复 auto_orientation 包名对齐与 AGP 8.0+ 规范
+      - name: Fix auto_orientation Manifest and Namespace
         run: |
           PYTHON_SCRIPT=$(cat << 'EOF'
           import glob, os, re
 
-          # 1. 修复 build.gradle 中缺失的 namespace
+          # 1. 设置匹配插件 Java 类的正确 namespace (com.rizkyghofur.autoorientation)
           gradle_files = glob.glob(os.path.expanduser('~/.pub-cache/hosted/pub.dev/auto_orientation-*/android/build.gradle'))
           for file_path in gradle_files:
               with open(file_path, 'r', encoding='utf-8') as f:
                   content = f.read()
               if 'namespace' not in content:
-                  content = content.replace('android {', 'android {\n    namespace "de.bytepark.autoorientation"')
+                  content = content.replace('android {', 'android {\n    namespace "com.rizkyghofur.autoorientation"')
                   with open(file_path, 'w', encoding='utf-8') as f:
                       f.write(content)
-                  print(f"Added namespace to: {file_path}")
+                  print(f"Set correct namespace in: {file_path}")
 
-          # 2. 移除 AndroidManifest.xml 中的 package 属性
+          # 2. 移除 AndroidManifest.xml 中与 AGP 8.0+ 冲突的 package 属性
           manifest_files = glob.glob(os.path.expanduser('~/.pub-cache/hosted/pub.dev/auto_orientation-*/android/src/main/AndroidManifest.xml'))
           for file_path in manifest_files:
               with open(file_path, 'r', encoding='utf-8') as f:
                   content = f.read()
-              # 使用正则移除 package="xxx"
               new_content = re.sub(r'\s*package="[^"]*"', '', content)
               if new_content != content:
                   with open(file_path, 'w', encoding='utf-8') as f:
