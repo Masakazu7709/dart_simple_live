@@ -23,7 +23,7 @@ jobs:
           flutter-version: "3.38.x"
           cache: true
 
-      # 1. 安全修补 pubspec.yaml
+      # 1. 安全修改 pubspec.yaml
       - name: Safely Patch pubspec.yaml
         run: |
           cd simple_live_app
@@ -35,11 +35,11 @@ jobs:
           # 替换 intl 约束
           content = content.replace('intl: ^0.20.2', 'intl: any')
 
-          # 在 dependencies: 节点下插入 auto_orientation
+          # 在 dependencies 下插入 auto_orientation
           if 'auto_orientation:' not in content:
               content = content.replace('dependencies:\n', 'dependencies:\n  auto_orientation: ^2.2.1\n')
 
-          # 在文件末尾追加顶级 dependency_overrides
+          # 追加 dependency_overrides
           if 'dependency_overrides:' not in content:
               content += '\ndependency_overrides:\n  dynamic_color: 1.7.0\n'
 
@@ -47,8 +47,8 @@ jobs:
               f.write(content)
           "
 
-      # 2. 清理陈旧写死的 Plugin Registrant
-      - name: Clean Outdated Plugin Registrant
+      # 2. 清理本地和项目的残留注册文件
+      - name: Clean Outdated Build Files
         run: |
           cd simple_live_app
           rm -f android/app/src/main/java/io/flutter/plugins/GeneratedPluginRegistrant.java
@@ -60,24 +60,24 @@ jobs:
           cd simple_live_app
           flutter pub get
 
-      # 4. 彻底修复 auto_orientation 包名对齐与 AGP 8.0+ 规范
+      # 4. 彻底修正 auto_orientation 插件的 namespace 与 Manifest
       - name: Fix auto_orientation Manifest and Namespace
         run: |
           PYTHON_SCRIPT=$(cat << 'EOF'
           import glob, os, re
 
-          # 1. 设置匹配插件 Java 类的正确 namespace (com.rizkyghofur.autoorientation)
+          # 1. 设置正确的 namespace 为 de.bytepark.autoorientation（与其实际包名一致）
           gradle_files = glob.glob(os.path.expanduser('~/.pub-cache/hosted/pub.dev/auto_orientation-*/android/build.gradle'))
           for file_path in gradle_files:
               with open(file_path, 'r', encoding='utf-8') as f:
                   content = f.read()
               if 'namespace' not in content:
-                  content = content.replace('android {', 'android {\n    namespace "com.rizkyghofur.autoorientation"')
+                  content = content.replace('android {', 'android {\n    namespace "de.bytepark.autoorientation"')
                   with open(file_path, 'w', encoding='utf-8') as f:
                       f.write(content)
-                  print(f"Set correct namespace in: {file_path}")
+                  print(f"Set namespace in: {file_path}")
 
-          # 2. 移除 AndroidManifest.xml 中与 AGP 8.0+ 冲突的 package 属性
+          # 2. 移除 AndroidManifest.xml 中过时的 package 属性 (适配 AGP 8.0+)
           manifest_files = glob.glob(os.path.expanduser('~/.pub-cache/hosted/pub.dev/auto_orientation-*/android/src/main/AndroidManifest.xml'))
           for file_path in manifest_files:
               with open(file_path, 'r', encoding='utf-8') as f:
@@ -91,13 +91,50 @@ jobs:
           )
           python3 -c "$PYTHON_SCRIPT"
 
-      # 5. 构建 Release APK
+      # 5. 替换/修复 GeneratedPluginRegistrant.java 中被误导的包名调用
+      - name: Patch GeneratedPluginRegistrant Package Name
+        run: |
+          cd simple_live_app
+          # 预先触发一次 build 产生/更新注册文件，或直接查找修补
+          python3 -c "
+          import glob, os
+
+          targets = glob.glob('android/app/src/main/java/io/flutter/plugins/GeneratedPluginRegistrant.java')
+          for target in targets:
+              if os.path.exists(target):
+                  with open(target, 'r', encoding='utf-8') as f:
+                      content = f.read()
+                  content = content.replace('com.rizkyghofur.autoorientation', 'de.bytepark.autoorientation')
+                  with open(target, 'w', encoding='utf-8') as f:
+                      f.write(content)
+                  print('Patched GeneratedPluginRegistrant.java directly.')
+          "
+
+      # 6. 构建 APK (构建过程中强制把生成的注册文件包名修正)
       - name: Build APK
         run: |
           cd simple_live_app
+          # 在执行 assemble 之前先进行 pre-build 生成文件并自动替换
+          flutter build apk --config-only || true
+          
+          python3 -c "
+          import glob, os
+          targets = glob.glob('android/app/src/main/java/io/flutter/plugins/GeneratedPluginRegistrant.java') + \
+                    glob.glob('.dart_tool/flutter_build/*/GeneratedPluginRegistrant.java')
+          for target in targets:
+              if os.path.exists(target):
+                  with open(target, 'r', encoding='utf-8') as f:
+                      content = f.read()
+                  if 'com.rizkyghofur.autoorientation' in content:
+                      content = content.replace('com.rizkyghofur.autoorientation', 'de.bytepark.autoorientation')
+                      with open(target, 'w', encoding='utf-8') as f:
+                          f.write(content)
+                      print(f'Patched {target}')
+          "
+
           flutter build apk --release --no-tree-shake-icons --android-skip-build-dependency-validation
 
-      # 6. 上传 APK 产物
+      # 7. 上传产物
       - name: Upload APK to Artifacts
         uses: actions/upload-artifact@v4
         with:
