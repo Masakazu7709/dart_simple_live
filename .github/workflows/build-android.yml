@@ -23,33 +23,36 @@ jobs:
           flutter-version: "3.38.x"
           cache: true
 
-      # 解决所有依赖冲突与 auto_orientation 插件找不到的问题
+      # 1. 依赖修复与覆盖
       - name: Patch Dependencies
         run: |
           cd simple_live_app
-          # 1. 解除 intl 版本限制
+          # 解除 intl 版本限制
           sed -i 's/intl: \^0.20.2/intl: any/g' pubspec.yaml
           
-          # 2. 重写锁定 dynamic_color 与 auto_orientation
+          # 覆盖 dynamic_color 避开语法 Bug
           echo "" >> pubspec.yaml
           echo "dependency_overrides:" >> pubspec.yaml
           echo "  dynamic_color: 1.7.0" >> pubspec.yaml
-          echo "  auto_orientation: any" >> pubspec.yaml
 
-      # 清理旧编译缓存并拉取依赖
+      # 2. 关键一步：彻底强制彻底清理写死的陈旧插件注册 Java 文件
+      - name: Clean Outdated Generated Plugin Registrant
+        run: |
+          rm -f simple_live_app/android/app/src/main/java/io/flutter/plugins/GeneratedPluginRegistrant.java
+
+      # 3. 拉取依赖
       - name: Restore Packages
         run: |
           cd simple_live_app
-          flutter clean
           flutter pub get
 
-      # 构建 Release APK
+      # 4. 编译 Release APK
       - name: Build APK
         run: |
           cd simple_live_app
           flutter build apk --release --no-tree-shake-icons --android-skip-build-dependency-validation
 
-      # 上传 APK 产物
+      # 5. 上传产物
       - name: Upload APK to Artifacts
         uses: actions/upload-artifact@v4
         with:
