@@ -23,35 +23,50 @@ jobs:
           flutter-version: "3.38.x"
           cache: true
 
-      # 1. 规范依赖修改：解绑 intl 并在正确的节点插入 auto_orientation 与 overrides
-      - name: Patch Dependencies
+      # 1. 使用标准的 Python 脚本操作 YAML 节点，绝对不会发生格式与缩进错位
+      - name: Safely Patch pubspec.yaml
         run: |
           cd simple_live_app
-          # 解除 intl 版本限制
-          sed -i 's/intl: \^0.20.2/intl: any/g' pubspec.yaml
+          python3 -c "
+          path = 'pubspec.yaml'
+          with open(path, 'r', encoding='utf-8') as f:
+              content = f.read()
 
-          # 使用安全的命令追加 auto_orientation 和 dynamic_color 重写规则
-          flutter pub add auto_orientation:^2.2.1
-          
-          # 写入 dependency_overrides 解决 dynamic_color 语法问题
-          echo "dependency_overrides:" >> pubspec.yaml
-          echo "  dynamic_color: 1.7.0" >> pubspec.yaml
+          # 替换 intl 约束
+          content = content.replace('intl: ^0.20.2', 'intl: any')
 
-      # 2. 清理旧缓存并获取依赖
-      - name: Restore Packages
+          # 在 dependencies: 节点下插入 auto_orientation
+          if 'auto_orientation:' not in content:
+              content = content.replace('dependencies:\n', 'dependencies:\n  auto_orientation: ^2.2.1\n')
+
+          # 在文件末尾确保顶级追加 dependency_overrides
+          if 'dependency_overrides:' not in content:
+              content += '\ndependency_overrides:\n  dynamic_color: 1.7.0\n'
+
+          with open(path, 'w', encoding='utf-8') as f:
+              f.write(content)
+          "
+
+      # 2. 清理写死/残留的 GeneratedPluginRegistrant.java，防止 Java 编译报找不到类
+      - name: Clean Outdated Plugin Registrant
         run: |
           cd simple_live_app
           rm -f android/app/src/main/java/io/flutter/plugins/GeneratedPluginRegistrant.java
           flutter clean
+
+      # 3. 获取依赖
+      - name: Restore Packages
+        run: |
+          cd simple_live_app
           flutter pub get
 
-      # 3. 编译 Release APK
+      # 4. 构建 APK
       - name: Build APK
         run: |
           cd simple_live_app
           flutter build apk --release --no-tree-shake-icons --android-skip-build-dependency-validation
 
-      # 4. 上传产物
+      # 5. 上传安装包
       - name: Upload APK to Artifacts
         uses: actions/upload-artifact@v4
         with:
