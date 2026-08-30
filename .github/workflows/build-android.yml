@@ -23,7 +23,7 @@ jobs:
           flutter-version: "3.38.x"
           cache: true
 
-      # 1. 使用标准的 Python 脚本操作 YAML 节点，绝对不会发生格式与缩进错位
+      # 1. 使用 Python 安全修补 pubspec.yaml，避免 YAML 语法缩进错位
       - name: Safely Patch pubspec.yaml
         run: |
           cd simple_live_app
@@ -39,7 +39,7 @@ jobs:
           if 'auto_orientation:' not in content:
               content = content.replace('dependencies:\n', 'dependencies:\n  auto_orientation: ^2.2.1\n')
 
-          # 在文件末尾确保顶级追加 dependency_overrides
+          # 在文件末尾追加顶级 dependency_overrides
           if 'dependency_overrides:' not in content:
               content += '\ndependency_overrides:\n  dynamic_color: 1.7.0\n'
 
@@ -47,26 +47,47 @@ jobs:
               f.write(content)
           "
 
-      # 2. 清理写死/残留的 GeneratedPluginRegistrant.java，防止 Java 编译报找不到类
+      # 2. 清理陈旧写死的 Plugin Registrant
       - name: Clean Outdated Plugin Registrant
         run: |
           cd simple_live_app
           rm -f android/app/src/main/java/io/flutter/plugins/GeneratedPluginRegistrant.java
           flutter clean
 
-      # 3. 获取依赖
+      # 3. 拉取依赖
       - name: Restore Packages
         run: |
           cd simple_live_app
           flutter pub get
 
-      # 4. 构建 APK
+      # 4. 关键：修复 auto_orientation 插件缺失 namespace 的问题 (兼容 AGP 8.0+)
+      - name: Patch auto_orientation Namespace for AGP
+        run: |
+          PYTHON_SCRIPT=$(cat << 'EOF'
+          import glob, os
+
+          pattern = os.path.expanduser('~/.pub-cache/hosted/pub.dev/auto_orientation-*/android/build.gradle')
+          files = glob.glob(pattern)
+
+          for file_path in files:
+              with open(file_path, 'r', encoding='utf-8') as f:
+                  content = f.read()
+              if 'namespace' not in content:
+                  content = content.replace('android {', 'android {\n    namespace "com.rizkyghofur.autoorientation"')
+                  with open(file_path, 'w', encoding='utf-8') as f:
+                      f.write(content)
+                  print(f"Patched namespace into: {file_path}")
+          EOF
+          )
+          python3 -c "$PYTHON_SCRIPT"
+
+      # 5. 构建 APK
       - name: Build APK
         run: |
           cd simple_live_app
           flutter build apk --release --no-tree-shake-icons --android-skip-build-dependency-validation
 
-      # 5. 上传安装包
+      # 6. 上传最终 APK 产物
       - name: Upload APK to Artifacts
         uses: actions/upload-artifact@v4
         with:
