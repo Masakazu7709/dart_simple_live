@@ -23,30 +23,29 @@ jobs:
           flutter-version: "3.38.x"
           cache: true
 
-      # 1. 修改依赖：解绑 intl、重写 dynamic_color，并补上 missing 的 auto_orientation 依赖
+      # 1. 规范依赖修改：解绑 intl 并在正确的节点插入 auto_orientation 与 overrides
       - name: Patch Dependencies
         run: |
           cd simple_live_app
-          # 解除 intl 版本锁
+          # 解除 intl 版本限制
           sed -i 's/intl: \^0.20.2/intl: any/g' pubspec.yaml
-          
-          # 在 dependencies 中补全 auto_orientation
-          echo "  auto_orientation: ^2.2.1" >> pubspec.yaml
 
+          # 使用安全的命令追加 auto_orientation 和 dynamic_color 重写规则
+          flutter pub add auto_orientation:^2.2.1
+          
           # 写入 dependency_overrides 解决 dynamic_color 语法问题
-          echo "" >> pubspec.yaml
           echo "dependency_overrides:" >> pubspec.yaml
           echo "  dynamic_color: 1.7.0" >> pubspec.yaml
 
-      # 2. 清理并重载依赖
+      # 2. 清理旧缓存并获取依赖
       - name: Restore Packages
         run: |
           cd simple_live_app
-          rm -rf android/app/src/main/java/io/flutter/plugins/GeneratedPluginRegistrant.java
+          rm -f android/app/src/main/java/io/flutter/plugins/GeneratedPluginRegistrant.java
           flutter clean
           flutter pub get
 
-      # 3. 执行编译
+      # 3. 编译 Release APK
       - name: Build APK
         run: |
           cd simple_live_app
